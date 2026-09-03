@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "process-lens-opcua-simulator"
+version = "0.2.0"
+description = "Deterministic grey-box benchmark for plant-wide process control and OPC UA research"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{name = "Jonathan Dambros"}]
+keywords = ["process-control", "opc-ua", "fault-diagnosis", "simulation", "benchmark"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = ["asyncua==1.1.8"]
+
+[project.optional-dependencies]
+test = ["build>=1.3,<2", "pytest>=9,<10", "pytest-cov>=7,<8"]
+
+[project.scripts]
+process-plant-simulator = "process_lens_opcua_simulator.cli:main"
+process-lens-opcua-simulator = "process_lens_opcua_simulator.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/jonathanwvd/process-lens-opcua-simulator"
+Repository = "https://github.com/jonathanwvd/process-lens-opcua-simulator"
+Issues = "https://github.com/jonathanwvd/process-lens-opcua-simulator/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+process_lens_opcua_simulator = ["catalog/*.csv"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["process_lens_opcua_simulator"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
