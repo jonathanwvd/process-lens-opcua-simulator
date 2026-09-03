@@ -26,6 +26,12 @@ and an independent OPC UA client read from a 500-node server.
 
 Static analysis and formatting checks passed with Ruff.
 
+The numerical suite is instrumented for coverage. The independent 500-node
+OPC UA test runs separately because Python 3.12 coverage instrumentation causes
+severe overhead inside asynchronous address-space construction; the same test
+passes without instrumentation, while Python 3.13 also completed the
+instrumented path.
+
 ## Six-hour generation benchmark
 
 Command:

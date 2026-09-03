@@ -22,5 +22,10 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e '.[test]'
       - run: process-plant-simulator validate-catalog
-      - run: pytest --cov --cov-report=term-missing
+      - name: Test numerical core with coverage
+        run: >-
+          pytest tests/test_catalog.py tests/test_dataset.py tests/test_engine.py
+          --cov --cov-report=term-missing
+      - name: Test OPC UA interoperability without coverage instrumentation
+        run: pytest tests/test_server.py
       - run: python -m build
