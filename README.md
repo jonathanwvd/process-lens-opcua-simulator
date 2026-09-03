@@ -1,5 +1,8 @@
 # Process Plant OPC UA Simulator
 
+[![CI](https://github.com/jonathanwvd/process-lens-opcua-simulator/actions/workflows/ci.yaml/badge.svg)](https://github.com/jonathanwvd/process-lens-opcua-simulator/actions/workflows/ci.yaml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 A deterministic, open-source, plant-wide process-control benchmark with **50
 control loops**, **500 temporal signals**, **20 operating and failure
 scenarios**, hidden ground truth, offline dataset generation, and an OPC UA
