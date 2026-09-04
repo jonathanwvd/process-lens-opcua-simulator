@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.4 — 2026-09-04
+
+- Publish a non-historized simulator heartbeat with deterministic source
+  timestamps and use it for container liveness.
+- Keep intentional Signal gaps and communication-loss scenarios from being
+  misclassified as a failed simulator process.
+
 ## 0.3.3 — 2026-09-04
 
 - Index every historian table by source timestamp, including compatible

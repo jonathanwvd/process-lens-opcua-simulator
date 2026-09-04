@@ -81,8 +81,13 @@ configuration are required before any non-local deployment guidance.
 
 ## Compatibility test
 
-The container healthcheck reads a stable Signal and rejects stale or
-implausibly future source timestamps in addition to checking server state.
+The server publishes a non-historized `Plant.SimulatorHeartbeat` technical node
+outside the 500-Signal scientific catalog. Its source timestamp advances with
+each simulation frame even when a declared scenario intentionally suppresses
+Signal observations. The container healthcheck reads this node and rejects
+stale or implausibly future source timestamps in addition to checking server
+state; it therefore measures process liveness without erasing simulated data
+unavailability.
 
 The automated suite starts the server on ephemeral loopback ports and resolves
 the namespace by URI with an independent `asyncua` client. It verifies the

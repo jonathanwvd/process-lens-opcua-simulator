@@ -10,9 +10,7 @@ from asyncua import Client, ua
 from asyncua.ua.uaerrors import UaError
 
 from .contracts import NAMESPACE_URI
-from .server import DEFAULT_ENDPOINT
-
-HEALTH_SIGNAL_NODE_ID = "Plant.ControlLoops.FIC-101.PV"
+from .server import DEFAULT_ENDPOINT, HEALTH_NODE_ID
 
 
 def _source_is_fresh(
@@ -42,7 +40,7 @@ async def _check() -> None:
         await client.nodes.server_state.read_value()
         namespace = await client.get_namespace_index(NAMESPACE_URI)
         value = await client.get_node(
-            ua.NodeId(HEALTH_SIGNAL_NODE_ID, namespace)
+            ua.NodeId(HEALTH_NODE_ID, namespace)
         ).read_data_value()
         if not _source_is_fresh(
             value.SourceTimestamp,

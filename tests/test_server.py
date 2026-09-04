@@ -9,6 +9,7 @@ from asyncua import Client, ua
 
 from process_lens_opcua_simulator.engine import Observation
 from process_lens_opcua_simulator.server import (
+    HEALTH_NODE_ID,
     NAMESPACE_URI,
     OpcUaPlantServer,
     _data_value,
@@ -104,7 +105,7 @@ def test_opcua_server_publishes_all_nodes_and_supports_current_reads(tmp_path: P
     assert engineering_unit == "m³/h"
 
 
-def test_realtime_publication_advances_the_source_timestamp(tmp_path: Path) -> None:
+def test_realtime_publication_advances_the_health_timestamp(tmp_path: Path) -> None:
     async def exercise() -> tuple[datetime | None, datetime | None]:
         port = _free_port()
         endpoint = f"opc.tcp://127.0.0.1:{port}/process-plant-simulator/"
@@ -119,9 +120,7 @@ def test_realtime_publication_advances_the_source_timestamp(tmp_path: Path) -> N
         try:
             async with Client(endpoint, timeout=3) as client:
                 namespace = await client.get_namespace_index(NAMESPACE_URI)
-                node = client.get_node(
-                    ua.NodeId("Plant.Areas.HDT.Equipment.K-301.VIBRATION", namespace)
-                )
+                node = client.get_node(ua.NodeId(HEALTH_NODE_ID, namespace))
                 first = await node.read_data_value()
                 second = first
                 for _ in range(70):

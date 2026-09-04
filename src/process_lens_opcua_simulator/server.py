@@ -6,9 +6,9 @@ import asyncio
 import logging
 import math
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from collections.abc import Callable
 from typing import Any
 
 from asyncua import Server, ua
@@ -20,6 +20,7 @@ from .storage import BulkHistorySQLite
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_ENDPOINT = "opc.tcp://127.0.0.1:4840/process-plant-simulator/"
+HEALTH_NODE_ID = "Plant.SimulatorHeartbeat"
 CHECKPOINT_SCHEMA = "process-plant-opcua/server-checkpoint/v1"
 _CHECKPOINT_KEYS = {
     "benchmark_version",
@@ -124,6 +125,7 @@ class OpcUaPlantServer:
         self.server: Server | None = None
         self.history: BulkHistorySQLite | None = None
         self.nodes: dict[str, Any] = {}
+        self.heartbeat_node: Any | None = None
         self.simulator: PlantSimulator | None = None
         self._task: asyncio.Task[None] | None = None
 
@@ -209,6 +211,11 @@ class OpcUaPlantServer:
     async def _create_address_space(self, namespace: int) -> None:
         assert self.server is not None
         root = await self.server.nodes.objects.add_object(namespace, "Plant")
+        self.heartbeat_node = await root.add_variable(
+            ua.NodeId(HEALTH_NODE_ID, namespace),
+            "SimulatorHeartbeat",
+            ua.Variant(0.0, ua.VariantType.Double),
+        )
         areas = await root.add_object(namespace, "Areas")
         loops = await root.add_object(namespace, "ControlLoops")
         area_nodes: dict[str, Any] = {}
@@ -340,7 +347,17 @@ class OpcUaPlantServer:
 
     async def _write_frame(self, frame: SimulationFrame, *, history: bool) -> None:
         assert self.history is not None
+        assert self.heartbeat_node is not None
+        assert self.simulator is not None
         try:
+            await self.heartbeat_node.write_value(
+                ua.DataValue(
+                    ua.Variant(self.simulator.elapsed_seconds, ua.VariantType.Double),
+                    StatusCode_=ua.StatusCode(ua.StatusCodes.Good),
+                    SourceTimestamp=frame.timestamp,
+                    ServerTimestamp=frame.timestamp,
+                )
+            )
             for observation in frame.observations:
                 signal = self.signal_by_id[observation.signal_id]
                 value = _data_value(observation, signal, frame.timestamp)

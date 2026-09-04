@@ -8,7 +8,8 @@
 | 0.3.0 | Superseded alpha release | 3.12, 3.13 | CI: Linux 3.12/3.13, macOS 3.13, Windows 3.13 | Closed v1 manifests, profiles, scenario studies, bounded historian continuity; cold bootstrap is not operationally qualified |
 | 0.3.1 | Superseded alpha release | 3.12, 3.13 | CI plus measured 24-hour cold bootstrap | Same 0.3.0 benchmark and checkpoint identity with bounded bootstrap performance correction |
 | 0.3.2 | Superseded alpha release | 3.12, 3.13 | CI plus restart-gap and timestamp-freshness coverage | Same 0.3.0 benchmark and checkpoint identity with wall-clock resume correction |
-| 0.3.3 | Current alpha release | 3.12, 3.13 | CI plus indexed-retention integration coverage | Same 0.3.0 benchmark and checkpoint identity with bounded steady-state retention |
+| 0.3.3 | Superseded alpha release | 3.12, 3.13 | CI plus indexed-retention integration coverage | Same 0.3.0 benchmark and checkpoint identity with bounded steady-state retention |
+| 0.3.4 | Current alpha release | 3.12, 3.13 | CI plus scenario-independent heartbeat coverage | Same 0.3.0 benchmark and checkpoint identity with explicit process liveness |
 
 The table describes tested configurations, not a promise that every Python or
 operating-system combination works. The container image is the reference
@@ -60,6 +61,11 @@ healthcheck additionally requires a fresh Signal source timestamp.
 Package release 0.3.3 adds source-timestamp indexes to new and compatible
 existing historian tables. It preserves the 0.3.2 restart and health semantics
 while bounding steady-state retention work for the 24-hour profile.
+
+Package release 0.3.4 adds one technical heartbeat outside the scientific
+Signal catalog. This does not change the 500 Signals, benchmark identity, or
+historian contract; it prevents deliberate Signal gaps from being interpreted
+as process failure by the container healthcheck.
 
 ## Candidate build and smoke procedure
 

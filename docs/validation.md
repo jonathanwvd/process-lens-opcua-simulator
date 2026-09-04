@@ -353,3 +353,16 @@ when opening an existing compatible volume. Query-plan coverage proves that the
 retention predicate uses the index. Restart-gap, current-publication, historian,
 scenario, and complete package tests pass with unchanged benchmark and
 checkpoint identities.
+
+## 0.3.4 scenario-independent process liveness
+
+Date: 2026-09-04
+
+Extended consumer observation found that the representative Signal selected by
+the 0.3.2 healthcheck could legitimately become stale during a declared data
+unavailability scenario while the simulator checkpoint and other runtime work
+continued advancing. Package 0.3.4 uses a dedicated, non-historized heartbeat
+outside the 500-Signal catalog. Automated coverage verifies that its source
+timestamp advances in real time; freshness and future-skew checks remain
+unchanged. This separates simulator-process liveness from intentional Signal
+quality and availability behavior.
