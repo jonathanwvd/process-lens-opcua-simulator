@@ -95,6 +95,11 @@ def test_values_are_typed_finite_and_bounded_by_extended_model_domain() -> None:
         assert -0.05 <= float(state["measured_pv_normalized"]) <= 1.05
         assert 0.0 <= float(state["controller_output_normalized"]) <= 1.0
         assert 0.0 <= float(state["actuator_position_normalized"]) <= 1.0
+    assert all(
+        len(simulator._state[loop_id].process_history)
+        <= int(retention / simulator.integration_step_seconds) + 2
+        for loop_id, retention in simulator._process_history_retention.items()
+    )
 
 
 def test_fault_truth_is_separate_from_observations() -> None:

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.1 — 2026-09-04
+
+- Preserve the 0.3.0 benchmark, schema, catalog, and checkpoint identities while
+  eliminating redundant per-node retention deletes during a new historian's
+  bounded cold bootstrap.
+- Increase the bounded cold-bootstrap write batch from 20,000 to 100,000 values;
+  steady-state writes continue enforcing retention on every committed frame.
+- Add direct coverage proving that retention can be deferred only for the
+  already bounded, initially empty bootstrap transaction stream.
+
 ## 0.3.0 — 2026-09-04
 
 - Add closed JSON Schema v1 contracts for benchmark manifests, runtime profiles,

@@ -5,7 +5,8 @@
 | Version | Status | Python | Operating-system evidence | Contract behavior |
 | --- | --- | --- | --- | --- |
 | 0.2.0 | Previous release | 3.12+ | Linux container and development hosts | Original 50-loop, 500-signal public benchmark |
-| 0.3.0 | Current alpha release | 3.12, 3.13 | CI: Linux 3.12/3.13, macOS 3.13, Windows 3.13 | Closed v1 manifests, profiles, scenario studies, bounded historian continuity |
+| 0.3.0 | Superseded alpha release | 3.12, 3.13 | CI: Linux 3.12/3.13, macOS 3.13, Windows 3.13 | Closed v1 manifests, profiles, scenario studies, bounded historian continuity; cold bootstrap is not operationally qualified |
+| 0.3.1 | Current alpha release | 3.12, 3.13 | CI plus measured 24-hour cold bootstrap | Same 0.3.0 benchmark and checkpoint identity with bounded bootstrap performance correction |
 
 The table describes tested configurations, not a promise that every Python or
 operating-system combination works. The container image is the reference
@@ -41,6 +42,13 @@ mapping NodeIds. Stable NodeIds remain catalog-owned, but clients must still
 resolve the runtime namespace index by namespace URI. Dataset consumers should
 adopt the observation, truth-frame, and dataset-manifest v1 schemas and keep
 truth separate from inference inputs.
+
+Package release 0.3.1 retains the benchmark-manifest, catalog, schema, and
+checkpoint identities of 0.3.0. Its only runtime change removes redundant
+retention work while filling an initially empty, already time-bounded
+historian. A 0.3.0 checkpoint is therefore compatible with 0.3.1, although a
+consumer should prefer a new 0.3.1 volume when replacing an unqualified or
+interrupted 0.3.0 cold bootstrap.
 
 ## Candidate build and smoke procedure
 

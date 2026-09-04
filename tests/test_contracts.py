@@ -2,6 +2,7 @@ import copy
 import csv
 import json
 from datetime import datetime
+from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pytest
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
+from process_lens_opcua_simulator import __version__
 from process_lens_opcua_simulator.cli import main
 from process_lens_opcua_simulator.contracts import (
     ContractValidationError,
@@ -35,6 +37,10 @@ def _validate_schema(filename: str, value: object) -> None:
         resources.append((payload["$id"], Resource.from_contents(payload)))
     validator = Draft202012Validator(schema, registry=Registry().with_resources(resources))
     validator.validate(value)
+
+
+def test_package_version_is_independent_from_benchmark_identity() -> None:
+    assert __version__ == version("process-lens-opcua-simulator") == "0.3.1"
 
 
 def test_all_bundled_json_schemas_are_valid() -> None:

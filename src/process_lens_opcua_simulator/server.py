@@ -284,18 +284,26 @@ class OpcUaPlantServer:
                 pending[observation.signal_id].append(
                     _data_value(observation, signal, frame.timestamp)
                 )
-            if sum(map(len, pending.values())) >= 20_000:
-                await self._flush(pending)
-        await self._flush(pending)
+            if sum(map(len, pending.values())) >= 100_000:
+                await self._flush(pending, enforce_retention=False)
+        await self._flush(pending, enforce_retention=False)
         await self._write_frame(self.simulator.snapshot(), history=False)
         await self.history.save_checkpoint(self._checkpoint())
 
-    async def _flush(self, pending: dict[str, list[ua.DataValue]]) -> None:
+    async def _flush(
+        self,
+        pending: dict[str, list[ua.DataValue]],
+        *,
+        enforce_retention: bool,
+    ) -> None:
         assert self.history is not None
         try:
             for signal_id, values in pending.items():
                 await self.history.save_node_values(
-                    self.nodes[signal_id].nodeid, values, commit=False
+                    self.nodes[signal_id].nodeid,
+                    values,
+                    commit=False,
+                    enforce_retention=enforce_retention,
                 )
             await self.history.commit_pending()
         except Exception:

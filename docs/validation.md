@@ -67,7 +67,7 @@ or cross-platform bitwise identity. Linux CI, longer profiles, OPC UA
 Historical Access continuation, and empirical calibration remain future
 release gates.
 
-## Unreleased 0.3.0 contract checkpoint
+## 0.3.0 contract checkpoint
 
 Date: 2026-09-03
 
@@ -94,7 +94,7 @@ This is development evidence, not a published release record. Cross-platform
 digest confirmation, long profile runs, Historian continuation/restart stress,
 and scientific calibration remain assigned to later checkpoints.
 
-## Unreleased 0.3.0 dynamic-model checkpoint
+## 0.3.0 dynamic-model checkpoint
 
 Date: 2026-09-03
 
@@ -124,7 +124,7 @@ The balance is deliberately normalized and grey-box; it is not evidence of
 engineering-unit mass or energy closure. Parameter calibration, independent
 process review, long runs, and scenario overlaps remain SIM-40 work.
 
-## Unreleased 0.3.0 OPC UA and historian checkpoint
+## 0.3.0 OPC UA and historian checkpoint
 
 Date: 2026-09-03
 
@@ -155,7 +155,7 @@ but it is not a hosted CI or native AMD64 performance measurement. Long-profile
 startup, write throughput, read latency, storage/signal-day, memory, crash
 injection, and native AMD64 evidence remain performance/release gates.
 
-## Unreleased 0.3.0 accelerated scenario qualification
+## 0.3.0 accelerated scenario qualification
 
 Date: 2026-09-04
 
@@ -292,3 +292,32 @@ and file SHA-256
 This is an accelerated one-hour-cycle qualification, not the final paper
 study. SIM-40 remains open for independent causal and process-engineering
 review.
+
+## 0.3.1 bounded cold-bootstrap correction
+
+Date: 2026-09-04
+
+The first consumer integration measurement rejected package 0.3.0 for the
+24-hour operational profile before deployment. The historian advanced only
+343 five-second frames after several minutes and projected more than one hour
+to readiness. Profiling located the dominant cost in a process-delay deque
+retained for the complete six-hour scenario cycle and scanned from its oldest
+entry for every coupled-loop integration step. Per-node retention deletes were
+also repeated during every already bounded bootstrap batch.
+
+Package 0.3.1 retains the exact 0.3.0 benchmark, model, schema, catalog,
+manifest, and checkpoint identities. It bounds each source loop's delay deque
+by the maximum declared outgoing coupling delay, which cannot change any value
+available to the model, and defers redundant retention deletes only while
+filling a new empty 24-hour historian. Steady-state writes still enforce
+retention on every committed frame. Existing scenario-signature, isolation,
+and experiment tests passed unchanged.
+
+The corrected full profile generated a complete 86,400-second checkpoint for
+all 500 nodes in 47.781 seconds on the Apple Silicon development host. The
+Linux container, constrained to 0.75 CPU and 384 MiB as in the consumer
+composition, announced its ready 500-node endpoint after approximately 75
+seconds and passed its OPC UA healthcheck by 90 seconds. The resulting SQLite
+historian was approximately 232 MiB. These are development-host measurements,
+not universal latency or storage guarantees; the consumer health start period
+must retain margin and the exact deployed image is rechecked before cutover.

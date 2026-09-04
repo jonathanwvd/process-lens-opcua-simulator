@@ -80,6 +80,7 @@ class BulkHistorySQLite(HistorySQLite):
         values: Iterable[ua.DataValue],
         *,
         commit: bool = True,
+        enforce_retention: bool = True,
     ) -> None:
         table = self._get_table_name(node_id)
         validate_table_name(table)
@@ -105,7 +106,7 @@ class BulkHistorySQLite(HistorySQLite):
                 f'INSERT INTO "{table}" VALUES (NULL, ?, ?, ?, ?, ?, ?)',
                 rows,
             )
-            if self.retention_seconds is not None:
+            if enforce_retention and self.retention_seconds is not None:
                 latest = max(
                     value.SourceTimestamp
                     for value in selected_values

@@ -197,8 +197,15 @@ class PlantSimulator:
             loop.loop_id: [] for loop in self.catalog.loops
         }
         self._interaction_source_targets: dict[str, list[str]] = {}
+        self._process_history_retention = {
+            loop.loop_id: self.integration_step_seconds for loop in self.catalog.loops
+        }
         for edge in self._edges:
             self._incoming[edge.target_loop_id].append(edge)
+            self._process_history_retention[edge.source_loop_id] = max(
+                self._process_history_retention[edge.source_loop_id],
+                edge.delay_seconds,
+            )
             if (
                 self._loops[edge.target_loop_id].primary_scenario
                 == "process.interaction"
@@ -477,12 +484,14 @@ class PlantSimulator:
             for loop in self.catalog.loops:
                 self._advance_loop(loop, dt)
             self.elapsed_seconds += dt
-            for state in self._state.values():
+            for loop_id, state in self._state.items():
                 state.process_history.append((self.elapsed_seconds, state.true_pv))
+                oldest_required = (
+                    self.elapsed_seconds - self._process_history_retention[loop_id]
+                )
                 while (
                     len(state.process_history) > 2
-                    and state.process_history[1][0]
-                    < self.elapsed_seconds - self.scenario_cycle_seconds
+                    and state.process_history[1][0] <= oldest_required
                 ):
                     state.process_history.popleft()
             self._step_index += 1
