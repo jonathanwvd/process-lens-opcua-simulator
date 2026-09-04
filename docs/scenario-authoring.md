@@ -34,7 +34,8 @@ in the observation CSV or OPC UA namespace.
 5. Add focused invariants for inactive behavior, active behavior, recovery,
    timestamp/quality semantics, and forbidden cross-layer effects.
 6. Run the 15/5/10 seed partition, the complete isolation matrix, deliberate
-   connected overlap controls, and a byte-identical replay.
+   connected overlap controls, and a byte-identical replay in the same recorded
+   execution environment.
 7. Regenerate the paper-cycle study whenever timing-dependent behavior or the
    benchmark-manifest digest changes.
 8. Record negative results and changed identities; do not overwrite evidence

@@ -83,8 +83,12 @@ executed qualification. See [Scenario validation](scenario-validation.md).
 
 ## Reproducibility identity
 
-For a fixed benchmark manifest, release, seed, start time, duration, integration
-step, observation frame, and scenario cycle, the generator produces identical
-observation bytes, truth bytes, artifact digests, dataset-manifest bytes, and
-dataset-manifest digest. File location is intentionally excluded from that
-identity; artifact filenames remain included.
+Within one recorded execution environment, a fixed benchmark manifest, release,
+seed, start time, duration, integration step, observation frame, and scenario
+cycle produces identical observation bytes, truth bytes, artifact digests,
+dataset-manifest bytes, and dataset-manifest digest. File location is
+intentionally excluded from that identity; artifact filenames remain included.
+System math-library implementations may differ in their last floating-point
+bits across operating systems. Cross-platform qualification therefore requires
+the same rules and tolerances to pass, while exact artifact comparison requires
+the same recorded environment.

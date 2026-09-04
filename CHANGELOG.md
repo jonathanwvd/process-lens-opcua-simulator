@@ -68,6 +68,9 @@
   documentation in the source distribution.
 - Make the standalone container start with the bounded `smoke` profile by
   default; longer research histories remain explicit profile selections.
+- Qualify scenario behavior across Linux, macOS, and Windows while defining
+  byte-identical numerical replay within one recorded execution environment;
+  system math libraries may differ in last-bit floating-point results.
 
 ## 0.2.0 — 2026-09-03
 

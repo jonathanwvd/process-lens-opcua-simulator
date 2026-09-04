@@ -59,8 +59,11 @@ Reproducibility identities:
 - complete file SHA-256:
   `2e28c8f24db3b95e47ed0842b8f0c2f882b7ebd4f5eb219f6dbd530f03b0303f`.
 
-An independent replay produced the same embedded digest and an identical file.
-The complete manifest validates against the bundled scenario-study schema.
+An independent replay in the same recorded execution environment produced the
+same embedded digest and an identical file. The complete manifest validates
+against the bundled scenario-study schema. Cross-platform qualification uses
+the same physical signature rules and tolerances; system math libraries may
+produce different last-bit values and therefore different whole-file digests.
 
 ## Corrections closed before the held-out run
 

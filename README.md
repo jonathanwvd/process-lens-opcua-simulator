@@ -221,11 +221,14 @@ a sensor failure distinct from a process disturbance.
 
 ## Reproducibility contract
 
-For a fixed benchmark manifest, release, seed, start timestamp, duration,
-integration step, observation frame, and scenario cycle, the simulator produces
-identical observation and truth bytes plus a path-independent dataset-manifest
-digest. All timestamps require an explicit UTC offset. Dataset splits should be
-made by seed and complete scenario cycle, not by randomly mixing adjacent rows.
+Within one recorded execution environment, a fixed benchmark manifest, release,
+seed, start timestamp, duration, integration step, observation frame, and
+scenario cycle produces identical observation and truth bytes plus a
+path-independent dataset-manifest digest. Supported operating systems satisfy
+the same scenario rules, but their system math libraries may differ in the last
+floating-point bits and therefore in artifact digests. All timestamps require
+an explicit UTC offset. Dataset splits should be made by seed and complete
+scenario cycle, not by randomly mixing adjacent rows.
 
 ## Development
 
