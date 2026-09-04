@@ -10,7 +10,16 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from .catalog import Catalog, LoopDefinition, SignalDefinition, load_catalog
-from .model import CouplingEdge, build_coupling_graph, parameters_for
+from .model import (
+    CONTROL_STRUCTURE_POLICIES,
+    SCENARIO_PARAMETERS,
+    CouplingEdge,
+    LoopModelDefinition,
+    build_coupling_graph,
+    model_definition_for,
+    parameters_for,
+    validate_model,
+)
 
 Quality = Literal["GOOD", "UNCERTAIN", "BAD", "BAD_NO_COMMUNICATION"]
 
@@ -77,9 +86,19 @@ class _LoopState:
     output: float = 0.50
     actuator: float = 0.50
     mode: str = "AUTO"
+    previous_mode: str = "AUTO"
     sensor_bias: float = 0.0
     frozen_measurement: float | None = None
-    delay: deque[tuple[float, float]] = field(default_factory=deque)
+    actuator_stuck: bool = False
+    backlash_direction: int = 0
+    backlash_remaining: float = 0.0
+    balance_residual: float = 0.0
+    delay: deque[tuple[float, float]] = field(
+        default_factory=lambda: deque(((0.0, 0.50),))
+    )
+    process_history: deque[tuple[float, float]] = field(
+        default_factory=lambda: deque(((0.0, 0.55),))
+    )
 
 
 def _stable_fraction(*parts: object) -> float:
@@ -124,11 +143,15 @@ class PlantSimulator:
         start_at: datetime | None = None,
         integration_step_seconds: float = 1.0,
         scenario_cycle_seconds: float = 21_600.0,
+        enabled_scenarios: frozenset[str] | set[str] | tuple[str, ...] | None = None,
     ) -> None:
         self.catalog = catalog or load_catalog()
         errors = self.catalog.validate()
         if errors:
             raise ValueError("invalid catalog: " + "; ".join(errors))
+        model_errors = validate_model(self.catalog)
+        if model_errors:
+            raise ValueError("invalid model: " + "; ".join(model_errors))
         scenario_ids = {item.scenario_id for item in self.catalog.scenarios}
         if scenario_ids != SUPPORTED_SCENARIOS:
             raise ValueError(
@@ -136,21 +159,53 @@ class PlantSimulator:
                 f"missing={sorted(scenario_ids - SUPPORTED_SCENARIOS)}, "
                 f"undeclared={sorted(SUPPORTED_SCENARIOS - scenario_ids)}"
             )
+        selected_scenarios = (
+            SUPPORTED_SCENARIOS
+            if enabled_scenarios is None
+            else frozenset(enabled_scenarios)
+        )
+        unknown_scenarios = selected_scenarios - SUPPORTED_SCENARIOS
+        if unknown_scenarios:
+            raise ValueError(f"unknown enabled scenarios: {sorted(unknown_scenarios)}")
+        selected_start = start_at or datetime(2026, 1, 1, tzinfo=UTC)
+        if selected_start.tzinfo is None or selected_start.utcoffset() is None:
+            raise ValueError("start_at must include a UTC offset")
+        integration_step = float(integration_step_seconds)
+        scenario_cycle = float(scenario_cycle_seconds)
+        if not math.isfinite(integration_step) or integration_step <= 0:
+            raise ValueError("integration_step_seconds must be finite and positive")
+        if not math.isfinite(scenario_cycle) or scenario_cycle < 600:
+            raise ValueError("scenario_cycle_seconds must be finite and at least 600")
         self.seed = int(seed)
-        self.start_at = (start_at or datetime(2026, 1, 1, tzinfo=UTC)).astimezone(UTC)
-        self.integration_step_seconds = max(float(integration_step_seconds), 0.1)
-        self.scenario_cycle_seconds = max(float(scenario_cycle_seconds), 600.0)
+        self.start_at = selected_start.astimezone(UTC)
+        self.integration_step_seconds = integration_step
+        self.scenario_cycle_seconds = scenario_cycle
+        self.enabled_scenarios = selected_scenarios
         self.elapsed_seconds = 0.0
         self._step_index = 0
         self._loops = {loop.loop_id: loop for loop in self.catalog.loops}
-        self._parameters = {loop.loop_id: parameters_for(loop) for loop in self.catalog.loops}
+        self._scenario_onset_offsets = {
+            loop.loop_id: 0.08 * (_stable_fraction(loop.loop_id, "onset") - 0.5)
+            for loop in self.catalog.loops
+        }
+        self._parameters = {
+            loop.loop_id: parameters_for(loop) for loop in self.catalog.loops
+        }
         self._state = {loop.loop_id: _LoopState() for loop in self.catalog.loops}
         self._edges = build_coupling_graph(self.catalog)
         self._incoming: dict[str, list[CouplingEdge]] = {
             loop.loop_id: [] for loop in self.catalog.loops
         }
+        self._interaction_source_targets: dict[str, list[str]] = {}
         for edge in self._edges:
             self._incoming[edge.target_loop_id].append(edge)
+            if (
+                self._loops[edge.target_loop_id].primary_scenario
+                == "process.interaction"
+            ):
+                self._interaction_source_targets.setdefault(
+                    edge.source_loop_id, []
+                ).append(edge.target_loop_id)
         self._signal_by_loop: dict[str, list[SignalDefinition]] = {}
         self._context_signals: list[SignalDefinition] = []
         for signal in self.catalog.signals:
@@ -158,34 +213,77 @@ class PlantSimulator:
                 self._signal_by_loop.setdefault(signal.loop_id, []).append(signal)
             else:
                 self._context_signals.append(signal)
-        self._last_active: dict[str, bool] = {loop.loop_id: False for loop in self.catalog.loops}
+        self._last_active: dict[str, bool] = {
+            loop.loop_id: False for loop in self.catalog.loops
+        }
         self._last_load_change = False
 
     @property
     def coupling_edges(self) -> tuple[CouplingEdge, ...]:
         return self._edges
 
+    @property
+    def model_definitions(self) -> tuple[LoopModelDefinition, ...]:
+        return tuple(model_definition_for(loop) for loop in self.catalog.loops)
+
     def _scenario_active(self, loop: LoopDefinition) -> tuple[bool, int, float]:
         cycle = int(self.elapsed_seconds // self.scenario_cycle_seconds)
-        phase = (self.elapsed_seconds % self.scenario_cycle_seconds) / self.scenario_cycle_seconds
-        offset = 0.08 * (_stable_fraction(loop.loop_id, "onset") - 0.5)
+        phase = (
+            self.elapsed_seconds % self.scenario_cycle_seconds
+        ) / self.scenario_cycle_seconds
+        offset = self._scenario_onset_offsets[loop.loop_id]
         active = (0.24 + offset) <= phase < (0.72 + offset)
-        if loop.primary_scenario == "normal.steady":
+        if (
+            loop.primary_scenario == "normal.steady"
+            or loop.primary_scenario not in self.enabled_scenarios
+        ):
             active = False
         return active, cycle, phase
 
     def _setpoint(self, loop: LoopDefinition, active: bool, phase: float) -> float:
         value = 0.55
-        if loop.loop_id in {"FIC-101", "FIC-201", "FIC-301"} and self._load_change_active(phase):
+        if loop.loop_id in {
+            "FIC-101",
+            "FIC-201",
+            "FIC-301",
+        } and self._load_change_active(phase):
             value += 0.08
         if loop.primary_scenario == "operations.setpoint_activity" and active:
             local = (phase - 0.24) / 0.48
             value += 0.10 * (2.0 * local - 1.0)
+        if loop.primary_scenario == "control.sluggish_tuning" and active:
+            value += float(
+                SCENARIO_PARAMETERS["control.sluggish_tuning"]["setpoint_step"]
+            )
+        if loop.primary_scenario == "actuator.saturation" and active:
+            value += float(
+                SCENARIO_PARAMETERS["actuator.saturation"]["active_setpoint_step"]
+            )
+        if self._interaction_source_active(loop.loop_id):
+            interaction = SCENARIO_PARAMETERS["process.interaction"]
+            value += float(interaction["source_driver_amplitude"]) * math.sin(
+                2.0
+                * math.pi
+                * self.elapsed_seconds
+                / float(interaction["source_driver_period_seconds"])
+            )
+        structure_bias = 0.025 * math.sin(
+            2.0 * math.pi * self.elapsed_seconds / self.scenario_cycle_seconds
+        )
+        _, _, _, bias_scale = CONTROL_STRUCTURE_POLICIES[loop.control_structure]
+        value += bias_scale * structure_bias
         return _bounded(value, 0.15, 0.90)
 
-    @staticmethod
-    def _load_change_active(phase: float) -> bool:
-        return 0.45 <= phase < 0.68
+    def _interaction_source_active(self, loop_id: str) -> bool:
+        if "process.interaction" not in self.enabled_scenarios:
+            return False
+        return any(
+            self._scenario_active(self._loops[target_loop_id])[0]
+            for target_loop_id in self._interaction_source_targets.get(loop_id, ())
+        )
+
+    def _load_change_active(self, phase: float) -> bool:
+        return "normal.load_change" in self.enabled_scenarios and 0.45 <= phase < 0.68
 
     def _delayed_actuator(self, state: _LoopState, delay_seconds: float) -> float:
         target_time = self.elapsed_seconds - delay_seconds
@@ -198,40 +296,62 @@ class PlantSimulator:
             state.delay.popleft()
         return value
 
+    def _delayed_process(self, loop_id: str, delay_seconds: float) -> float:
+        history = self._state[loop_id].process_history
+        target_time = self.elapsed_seconds - delay_seconds
+        value = history[0][1]
+        for stamp, candidate in history:
+            if stamp > target_time:
+                break
+            value = candidate
+        return value
+
     def _coupling(
         self,
         loop_id: str,
         active: bool,
-        prior_state: dict[str, float],
     ) -> float:
         total = 0.0
         for edge in self._incoming[loop_id]:
             gain = edge.gain * (
                 2.0
-                if active and self._loops[loop_id].primary_scenario == "process.interaction"
+                if active
+                and self._loops[loop_id].primary_scenario == "process.interaction"
                 else 1.0
             )
-            total += gain * (prior_state[edge.source_loop_id] - 0.55)
+            delayed_source = self._delayed_process(
+                edge.source_loop_id, edge.delay_seconds
+            )
+            deviation = delayed_source - 0.55
+            if (
+                active
+                and self._loops[loop_id].primary_scenario
+                == "control.propagated_oscillation"
+                and edge.source_loop_id == "FIC-701"
+            ):
+                parameters = SCENARIO_PARAMETERS["control.propagated_oscillation"]
+                source_time = self.elapsed_seconds - edge.delay_seconds
+                deviation += float(parameters["source_amplitude"]) * math.sin(
+                    2.0 * math.pi * source_time / float(parameters["period_seconds"])
+                )
+            total += gain * deviation
         return total
 
     def _advance_loop(
         self,
         loop: LoopDefinition,
         dt: float,
-        prior_state: dict[str, float],
     ) -> None:
         state = self._state[loop.loop_id]
         params = self._parameters[loop.loop_id]
         active, _, phase = self._scenario_active(loop)
         state.setpoint = self._setpoint(loop, active, phase)
+        state.previous_mode = state.mode
+        default_mode = CONTROL_STRUCTURE_POLICIES[loop.control_structure][0]
         state.mode = (
             "MAN"
             if loop.primary_scenario == "operations.manual" and active
-            else (
-                "CAS"
-                if loop.control_structure in {"cascade_primary", "ratio_control", "three_element"}
-                else "AUTO"
-            )
+            else default_mode
         )
 
         measurement = state.true_pv
@@ -254,61 +374,117 @@ class PlantSimulator:
         state.measured_pv = _bounded(measurement, -0.05, 1.05)
 
         error = state.setpoint - state.measured_pv
+        controller_gain = params.controller_gain
+        integral_time = params.integral_time_seconds
+        if active and loop.primary_scenario in {
+            "control.aggressive_tuning",
+            "control.sluggish_tuning",
+        }:
+            tuning = SCENARIO_PARAMETERS[loop.primary_scenario]
+            controller_gain *= float(tuning["controller_gain_scale"])
+            integral_time *= float(tuning["integral_time_scale"])
         if state.mode == "MAN":
             requested = 0.50 + 0.06 * math.sin(2.0 * math.pi * phase * 3.0)
+            state.integral = _bounded(
+                requested - 0.50 - controller_gain * error,
+                params.integral_lower_limit,
+                params.integral_upper_limit,
+            )
         else:
             proposed_integral = (
-                state.integral
-                + (params.controller_gain / params.integral_time_seconds) * error * dt
+                state.integral + (controller_gain / integral_time) * error * dt
             )
-            requested = 0.50 + params.controller_gain * error + proposed_integral
-            if 0.0 < requested < 1.0:
-                state.integral = proposed_integral
-        state.output = _bounded(requested)
+            requested = 0.50 + controller_gain * error + proposed_integral
+            if params.lower_limit < requested < params.upper_limit:
+                state.integral = _bounded(
+                    proposed_integral,
+                    params.integral_lower_limit,
+                    params.integral_upper_limit,
+                )
+            if loop.control_structure == "override_selector":
+                protective_limit = 0.74 if state.measured_pv > 0.82 else 1.0
+                requested = min(requested, protective_limit)
+        state.output = _bounded(requested, params.lower_limit, params.upper_limit)
 
         actuator_target = state.output
+        if loop.control_structure == "split_range":
+            if actuator_target < 0.48:
+                actuator_target = 0.5 * actuator_target / 0.48
+            elif actuator_target > 0.52:
+                actuator_target = 0.5 + 0.5 * (actuator_target - 0.52) / 0.48
+            else:
+                actuator_target = 0.50
         if loop.primary_scenario == "actuator.saturation" and active:
             actuator_target = min(actuator_target, 0.67)
         delta = actuator_target - state.actuator
-        if loop.primary_scenario == "valve.stiction" and active and abs(delta) < 0.055:
+        state.actuator_stuck = False
+        if (
+            loop.primary_scenario == "valve.stiction"
+            and active
+            and abs(delta) < params.stiction_band
+        ):
             delta = 0.0
+            state.actuator_stuck = True
         elif loop.primary_scenario == "valve.backlash" and active:
-            deadband = 0.035
-            delta = math.copysign(max(abs(delta) - deadband, 0.0), delta)
-        state.actuator = _bounded(state.actuator + dt * delta / params.actuator_time_seconds)
-        state.delay.append((self.elapsed_seconds, state.actuator))
+            direction = 1 if delta > 0 else -1 if delta < 0 else 0
+            if direction and direction != state.backlash_direction:
+                state.backlash_direction = direction
+                state.backlash_remaining = params.backlash_band
+            consumed = min(abs(delta), state.backlash_remaining)
+            state.backlash_remaining -= consumed
+            delta = math.copysign(max(abs(delta) - consumed, 0.0), delta)
+        desired_move = dt * delta / params.actuator_time_seconds
+        rate_move = params.actuator_rate_limit_per_second * dt
+        state.actuator = _bounded(
+            state.actuator + _bounded(desired_move, -rate_move, rate_move),
+            params.lower_limit,
+            params.upper_limit,
+        )
+        state.delay.append((self.elapsed_seconds + dt, state.actuator))
 
         delayed = self._delayed_actuator(state, params.dead_time_seconds)
         disturbance = 0.0
-        if active and loop.primary_scenario in {
-            "control.oscillation",
-            "control.propagated_oscillation",
-        }:
-            disturbance += 0.075 * math.sin(2.0 * math.pi * self.elapsed_seconds / 540.0)
+        if active and loop.primary_scenario == "control.oscillation":
+            disturbance += 0.075 * math.sin(
+                2.0 * math.pi * self.elapsed_seconds / 540.0
+            )
         if active and loop.primary_scenario == "process.disturbance":
             disturbance += 0.085
-        coupling = self._coupling(loop.loop_id, active, prior_state)
-        equilibrium = 0.55 + params.process_gain * (delayed - 0.50) + disturbance + coupling
+        coupling = self._coupling(loop.loop_id, active)
+        equilibrium = (
+            0.55 + params.process_gain * (delayed - 0.50) + disturbance + coupling
+        )
+        derivative = (equilibrium - state.true_pv) / params.time_constant_seconds
+        previous_pv = state.true_pv
         state.true_pv = _bounded(
-            state.true_pv + dt * (equilibrium - state.true_pv) / params.time_constant_seconds,
+            state.true_pv + dt * derivative,
             -0.05,
             1.05,
         )
+        actual_derivative = (state.true_pv - previous_pv) / dt
+        state.balance_residual = actual_derivative - derivative
 
     def advance(self, seconds: float) -> SimulationFrame:
         """Advance physical time and return observations due at the final time."""
 
-        remaining = max(float(seconds), 0.0)
+        remaining = float(seconds)
+        if not math.isfinite(remaining) or remaining < 0:
+            raise ValueError("seconds must be finite and non-negative")
         transitions: list[TruthEvent] = []
         while remaining > 1e-12:
             dt = min(remaining, self.integration_step_seconds)
-            active_before = {
-                loop.loop_id: self._scenario_active(loop)[0] for loop in self.catalog.loops
-            }
-            prior = {key: value.true_pv for key, value in self._state.items()}
+            active_before = self._last_active.copy()
             for loop in self.catalog.loops:
-                self._advance_loop(loop, dt, prior)
+                self._advance_loop(loop, dt)
             self.elapsed_seconds += dt
+            for state in self._state.values():
+                state.process_history.append((self.elapsed_seconds, state.true_pv))
+                while (
+                    len(state.process_history) > 2
+                    and state.process_history[1][0]
+                    < self.elapsed_seconds - self.scenario_cycle_seconds
+                ):
+                    state.process_history.popleft()
             self._step_index += 1
             remaining -= dt
             cycle = int(self.elapsed_seconds // self.scenario_cycle_seconds)
@@ -331,7 +507,7 @@ class PlantSimulator:
             for loop in self.catalog.loops:
                 active, cycle, _ = self._scenario_active(loop)
                 before = active_before[loop.loop_id]
-                if active != before or active != self._last_active[loop.loop_id]:
+                if active != before:
                     transitions.append(
                         TruthEvent(
                             scenario_id=loop.primary_scenario,
@@ -372,8 +548,14 @@ class PlantSimulator:
         return low + float(normalized) * (high - low)
 
     def _context_value(self, signal: SignalDefinition) -> float | str | bool:
-        related = [self._state[item] for item in signal.context_for_loop_ids if item in self._state]
-        normalized = sum(item.true_pv for item in related) / len(related) if related else 0.55
+        related = [
+            self._state[item]
+            for item in signal.context_for_loop_ids
+            if item in self._state
+        ]
+        normalized = (
+            sum(item.true_pv for item in related) / len(related) if related else 0.55
+        )
         channel = _stable_fraction(signal.signal_id, self._step_index)
         if signal.data_type == "boolean":
             return normalized > 0.12
@@ -400,6 +582,11 @@ class PlantSimulator:
                 quality = "BAD"
             observed_at = timestamp
             if active and scenario == "data.irregular_cadence":
+                skip = _stable_fraction(signal.signal_id, elapsed, "skip") < float(
+                    SCENARIO_PARAMETERS[scenario]["skip_fraction"]
+                )
+                if skip:
+                    continue
                 jitter = int(1 + 7 * _stable_fraction(signal.signal_id, elapsed))
                 observed_at += timedelta(seconds=jitter)
                 quality = "UNCERTAIN"
@@ -441,6 +628,10 @@ class PlantSimulator:
                 "setpoint_normalized": state.setpoint,
                 "controller_output_normalized": state.output,
                 "actuator_position_normalized": state.actuator,
+                "actuator_stuck": state.actuator_stuck,
+                "balance_residual": state.balance_residual,
+                "integral_state": state.integral,
+                "sensor_bias_normalized": state.sensor_bias,
                 "mode": state.mode,
             }
         return result

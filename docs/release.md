@@ -1,0 +1,93 @@
+# Release and compatibility
+
+## Version status
+
+| Version | Status | Python | Operating-system evidence | Contract behavior |
+| --- | --- | --- | --- | --- |
+| 0.2.0 | Previous release | 3.12+ | Linux container and development hosts | Original 50-loop, 500-signal public benchmark |
+| 0.3.0 | Current alpha release | 3.12, 3.13 | CI: Linux 3.12/3.13, macOS 3.13, Windows 3.13 | Closed v1 manifests, profiles, scenario studies, bounded historian continuity |
+
+The table describes tested configurations, not a promise that every Python or
+operating-system combination works. The container image is the reference
+runtime. `CITATION.cff` identifies the current software release; an archival
+DOI remains absent until an exact archive is created.
+
+## Compatibility rules
+
+The Python package version and benchmark identity are related but distinct.
+A consumer must pin all of the following:
+
+1. package or container release and artifact digest;
+2. benchmark-manifest digest and catalog digest;
+3. schema identifiers;
+4. runtime profile or complete explicit timing parameters;
+5. seed and explicit UTC start time for reproducible datasets.
+
+A schema-major change is incompatible. A changed catalog, resolved model,
+scenario parameterization, or runtime profile creates a new benchmark identity
+even when the schema remains compatible. Do not append observations from
+different identities to one experiment or historian.
+
+## Migration from 0.2.0 to 0.3.0
+
+0.3.0 adds versioned public contracts and a versioned server checkpoint. A
+0.2.0 SQLite historian has no compatible checkpoint and must not be silently
+adopted. Preserve it as an immutable prior artifact or start a new 0.3.0
+historian with an explicit path. `--reset` is appropriate only when the chosen
+development historian is intentionally disposable.
+
+Consumers should export and validate the 0.3.0 benchmark manifest before
+mapping NodeIds. Stable NodeIds remain catalog-owned, but clients must still
+resolve the runtime namespace index by namespace URI. Dataset consumers should
+adopt the observation, truth-frame, and dataset-manifest v1 schemas and keep
+truth separate from inference inputs.
+
+## Candidate build and smoke procedure
+
+From a clean checkout and supported Python environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[test]'
+python -m pytest
+process-plant-simulator validate-catalog
+process-plant-simulator export-manifest --output var/benchmark-manifest.json
+process-plant-simulator validate-manifest var/benchmark-manifest.json
+process-plant-simulator generate --profile smoke --seed 20260903 \
+  --start-at 2026-09-03T00:00:00+00:00 \
+  --output var/smoke.csv --truth-output var/smoke-truth.jsonl
+python -m build
+```
+
+Install the wheel into a second clean environment, repeat manifest validation
+and smoke generation, then start the server and run an independent OPC UA read
+of all 500 nodes plus a paged Historical Access query. Build the container from
+the same commit and repeat the interoperability test against its loopback port.
+The container default is the bounded `smoke` profile. Longer profiles must be
+selected explicitly and their cold historian-bootstrap time recorded.
+
+## Publication gate
+
+A software alpha release is publishable after the build, test, identity,
+interoperability, security, and provenance items below are recorded. An
+archival or publication-grade scientific release additionally requires the
+independent scientific-review disposition:
+
+- complete CI matrix and local test result;
+- exact Git commit and clean source tree;
+- wheel, source distribution, and container digests;
+- generated benchmark manifest and digest;
+- dependency SBOMs and vulnerability-scan results for package and image;
+- installed-wheel and container interoperability evidence;
+- scenario qualification, isolation matrix, and replay;
+- independent scientific-review disposition before archival or
+  publication-grade claims;
+- signed tag or equivalent provenance attestation;
+- release notes and rollback/migration instructions.
+
+Zenodo or an equivalent archive comes after the immutable release exists. Add
+its DOI to `CITATION.cff` only after the archive resolves to the exact release.
+Generated runtime history, credentials, private endpoints, and proprietary
+inputs are never release artifacts.

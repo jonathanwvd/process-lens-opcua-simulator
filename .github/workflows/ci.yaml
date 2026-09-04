@@ -9,10 +9,20 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.12"
+          - os: ubuntu-latest
+            python-version: "3.13"
+          - os: macos-latest
+            python-version: "3.13"
+          - os: windows-latest
+            python-version: "3.13"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -22,10 +32,33 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e '.[test]'
       - run: process-plant-simulator validate-catalog
-      - name: Test numerical core with coverage
-        run: >-
-          pytest tests/test_catalog.py tests/test_dataset.py tests/test_engine.py
-          --cov --cov-report=term-missing
-      - name: Test OPC UA interoperability without coverage instrumentation
-        run: pytest tests/test_server.py
-      - run: python -m build
+      - name: Test complete package
+        run: python -m pytest
+      - name: Build distributions
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        run: python -m build
+
+  container-smoke:
+    name: Linux container smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build candidate image
+        run: docker build --tag process-lens-opcua-simulator:ci .
+      - name: Start and validate OPC UA health
+        shell: bash
+        run: |
+          docker run --detach --name simulator-ci process-lens-opcua-simulator:ci
+          for attempt in {1..60}; do
+            if docker exec simulator-ci \
+              python -m process_lens_opcua_simulator.healthcheck; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs simulator-ci
+          exit 1
+      - name: Remove smoke container
+        if: always()
+        run: docker rm --force simulator-ci || true

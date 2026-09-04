@@ -51,14 +51,22 @@ for normal operation and for every scenario individually, then for approved
 scenario overlaps. Pre-register scenario parameters and metrics before
 examining held-out results.
 
+The current executable accelerated qualification, its frozen seed partitions,
+and the remaining paper gate are recorded in
+[Scenario validation](scenario-validation.md).
+
 Recommended operating profiles:
 
 | Profile | History | Integration | Published cadence | Purpose |
 | --- | ---: | ---: | ---: | --- |
 | smoke | 15 min | 1 s | 30 s | CI and compatibility |
-| development | 6 h | 1 s | mixed 5–300 s | method iteration |
-| paper | 72 h/seed | 1 s | mixed 5–300 s | main experiments |
-| stress | 30 d | 1–5 s | mixed 5–300 s | storage and performance |
+| development | 6 h | 1 s | 30 s | method iteration |
+| paper | 24 h | 1 s | 5 s | 72 h/seed main experiments |
+| stress | 24 h | 5 s | 30 s | 30 d storage and performance |
+
+These values are executable definitions bundled with the package. See
+[Versioned contracts](contracts.md) for scenario-cycle and historian response
+limits and for the compatibility rules.
 
 ## Metrics
 

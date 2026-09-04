@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 from math import isfinite
 
+import pytest
+
 from process_lens_opcua_simulator import PlantSimulator, load_catalog
 from process_lens_opcua_simulator.engine import SUPPORTED_SCENARIOS
 
@@ -24,6 +26,60 @@ def test_different_seeds_change_measurements_not_catalog() -> None:
     right = second.advance(30)
     assert left.state_digest != right.state_digest
     assert first.catalog.digest == second.catalog.digest
+
+
+def test_explicit_scenario_selection_is_deterministic_and_isolated() -> None:
+    default = PlantSimulator(seed=17, scenario_cycle_seconds=600)
+    explicit = PlantSimulator(
+        seed=17,
+        scenario_cycle_seconds=600,
+        enabled_scenarios=set(SUPPORTED_SCENARIOS),
+    )
+    assert default.advance(180) == explicit.advance(180)
+
+    isolated = PlantSimulator(
+        seed=17,
+        scenario_cycle_seconds=600,
+        enabled_scenarios={"sensor.noise"},
+    )
+    frame = isolated.advance(180)
+    truth = isolated.truth_state()
+    assert any(
+        state["scenario_id"] == "sensor.noise" and state["scenario_active"]
+        for state in truth.values()
+    )
+    assert all(
+        not state["scenario_active"]
+        for state in truth.values()
+        if state["scenario_id"] != "sensor.noise"
+    )
+    assert all(not state["load_change_active"] for state in truth.values())
+    assert {event.scenario_id for event in frame.truth_events} <= {"sensor.noise"}
+
+
+def test_unknown_scenario_selection_fails_before_simulation() -> None:
+    with pytest.raises(ValueError, match="unknown enabled scenarios"):
+        PlantSimulator(enabled_scenarios={"unknown.scenario"})
+
+
+def test_isolated_process_interaction_excites_declared_source_loops_only() -> None:
+    simulator = PlantSimulator(
+        seed=17,
+        scenario_cycle_seconds=600,
+        enabled_scenarios={"process.interaction"},
+    )
+    simulator.advance(180)
+    truth = simulator.truth_state()
+    source_ids = set(simulator._interaction_source_targets)
+
+    assert source_ids == {"FIC-207", "PIC-402", "FIC-301", "FIC-901"}
+    assert all(
+        float(truth[loop_id]["setpoint_normalized"]) != 0.55
+        for loop_id in source_ids
+    )
+    assert all(
+        not state["load_change_active"] for state in truth.values()
+    )
 
 
 def test_values_are_typed_finite_and_bounded_by_extended_model_domain() -> None:
@@ -53,9 +109,28 @@ def test_fault_truth_is_separate_from_observations() -> None:
     assert truth["LIC-103"]["scenario_active"] is True
     assert truth["LIC-205"]["mode"] == "MAN"
     assert not any(
-        "scenario" in observation.signal_id.lower() for observation in frame.observations
+        "scenario" in observation.signal_id.lower()
+        for observation in frame.observations
     )
-    assert not any("truth" in observation.node_id.lower() for observation in frame.observations)
+    assert not any(
+        "truth" in observation.node_id.lower() for observation in frame.observations
+    )
+
+
+def test_sluggish_tuning_has_a_repeatable_setpoint_excitation() -> None:
+    simulator = PlantSimulator(
+        seed=5,
+        scenario_cycle_seconds=3_600,
+        enabled_scenarios=("control.sluggish_tuning",),
+    )
+    loop = next(
+        item for item in simulator.catalog.loops if item.loop_id == "TIC-204"
+    )
+
+    inactive = simulator._setpoint(loop, False, 0.30)
+    active = simulator._setpoint(loop, True, 0.30)
+
+    assert active - inactive == pytest.approx(0.06)
 
 
 def test_data_failure_scenarios_affect_transport_semantics() -> None:
@@ -74,7 +149,11 @@ def test_data_failure_scenarios_affect_transport_semantics() -> None:
     assert not (by_loop["AIC-105"] & observed)
     bad_ids = by_loop["PIC-605"] & observed
     assert bad_ids
-    assert all(item.quality == "BAD" for item in frame.observations if item.signal_id in bad_ids)
+    assert all(
+        item.quality == "BAD"
+        for item in frame.observations
+        if item.signal_id in bad_ids
+    )
 
 
 def test_coupling_graph_is_sparse_directed_and_crosses_plant_areas() -> None:

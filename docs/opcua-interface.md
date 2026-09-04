@@ -42,15 +42,45 @@ Historical reads return the values, statuses, and timestamps that were
 observed. This follows the OPC UA Part 11 principle that raw historical data
 represent what a subscriber would have seen at that time.
 
+Source timestamps are normalized to UTC before SQLite encoding and query
+bounds use the same representation. Both interval endpoints are inclusive.
+Ascending and reverse reads are supported; empty ranges return no values.
+Responses are capped by the selected runtime profile and use OPC UA
+continuation points without repeating or skipping the boundary sample.
+
+Different catalog cadences remain different in history. `Good`, `Uncertain`,
+`Bad`, and `BadNoCommunication` have explicit status-code mappings. Gap and
+communication-loss scenarios do not create synthetic zeroes or historical
+rows; recovery resumes with a fresh `Good` value and timestamp. Irregular
+cadence retains different source and server timestamps.
+
+## Retention and restart
+
+When history is enabled, each node is pruned against the configured retention
+window as new values arrive. Observation rows and the simulator checkpoint are
+committed in one SQLite transaction. The checkpoint pins benchmark version,
+catalog digest, namespace, seed, UTC origin, elapsed time, integration step,
+publication cadence, and scenario cycle.
+
+On restart, the deterministic model replays to the checkpoint without writing
+the bootstrap period again. Existing historical rows remain unchanged and live
+publication continues from the next frame. A configuration mismatch fails
+before the endpoint starts. A database containing observations without a
+complete checkpoint is treated as an interrupted bootstrap and requires an
+explicit `--reset`; it is never silently repaired or duplicated.
+
 ## Security boundary
 
-Version 0.2.0 implements only an anonymous `NoSecurity` development profile and
-binds the container port to loopback. This profile is not suitable for an
+The server implements only an anonymous `NoSecurity` development profile and
+the container binds its port to loopback. This profile is not suitable for an
 untrusted network. Certificate-based SignAndEncrypt profiles and user identity
-configuration are planned before any non-local deployment guidance.
+configuration are required before any non-local deployment guidance.
 
 ## Compatibility test
 
-The automated suite starts the server on an ephemeral loopback port, resolves
-the namespace by URI with an independent `asyncua` client, reads a control-loop
-PV, and verifies the engineering-unit property and total 500-node server map.
+The automated suite starts the server on ephemeral loopback ports and resolves
+the namespace by URI with an independent `asyncua` client. It verifies the
+500-node map, current values and engineering metadata, multi-page Historical
+Access, inclusive and reverse bounds, empty ranges, mixed cadences, status and
+timestamp preservation, gaps, recovery, retention, restart continuity, and
+checkpoint mismatch rejection.

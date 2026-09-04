@@ -17,4 +17,4 @@ ENV PROCESS_SIMULATOR_ENDPOINT=opc.tcp://127.0.0.1:4840/process-plant-simulator/
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
   CMD ["python", "-m", "process_lens_opcua_simulator.healthcheck"]
 ENTRYPOINT ["process-plant-simulator"]
-CMD ["serve", "--endpoint", "opc.tcp://0.0.0.0:4840/process-plant-simulator/", "--history-db", "/data/history.sqlite3"]
+CMD ["serve", "--profile", "smoke", "--endpoint", "opc.tcp://0.0.0.0:4840/process-plant-simulator/", "--history-db", "/data/history.sqlite3"]

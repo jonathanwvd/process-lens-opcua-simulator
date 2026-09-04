@@ -1,0 +1,11 @@
+include CHANGELOG.md
+include CITATION.cff
+include Dockerfile
+include LICENSE
+include README.md
+include SECURITY.md
+include compose.yaml
+recursive-include docs *.md
+recursive-include src/process_lens_opcua_simulator/catalog *.csv
+recursive-include src/process_lens_opcua_simulator/profiles *.json
+recursive-include src/process_lens_opcua_simulator/schemas *.json

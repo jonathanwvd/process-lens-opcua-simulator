@@ -6,6 +6,7 @@ import asyncio
 import os
 
 from asyncua import Client
+from asyncua.ua.uaerrors import UaError
 
 from .server import DEFAULT_ENDPOINT
 
@@ -19,7 +20,7 @@ async def _check() -> None:
 def main() -> int:
     try:
         asyncio.run(_check())
-    except Exception:
+    except (OSError, TimeoutError, UaError):
         return 1
     return 0
 

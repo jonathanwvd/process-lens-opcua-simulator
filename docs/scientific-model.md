@@ -29,9 +29,10 @@ $$
 $$
 
 The sparse matrix $A=[a_{ji}]$ contains within-area edges and ten declared
-cross-area mechanisms. The numerical integrator uses fixed-step forward Euler
-with a default one-second step. All couplings use the previous integration
-state (Jacobi update), so loop iteration order does not define causality.
+cross-area mechanisms. Every edge uses its declared transport delay against
+retained source-state history. The numerical integrator uses fixed-step forward
+Euler with a default one-second step. All couplings use completed integration
+states, so loop iteration order does not define instantaneous causality.
 
 The PI controller is:
 
@@ -49,11 +50,17 @@ anti-windup rule: the integral update is accepted only when the unsaturated
 controller output lies inside its limits. Manual mode replaces this law with
 an explicit operating schedule.
 
-The nominal actuator is first order:
+The nominal actuator is first order and subject to a per-second travel limit:
 
 $$
 \frac{dm_i}{dt}=\frac{u_i-m_i}{\tau_{a,i}}.
 $$
+
+Manual output continuously tracks the PI integral term, allowing a bounded
+bumpless return to AUTO, CAS, or REMOTE. Backlash retains direction and
+remaining reversal travel; stiction and capacity restriction have separate
+explicit parameters. Structure-specific policies are documented in
+[Control structures](control-structures.md).
 
 Every normalized numeric state is mapped linearly into the engineering range
 declared by its Signal catalog entry. This scaling supports mixed units but is
@@ -65,7 +72,8 @@ The seven loop classes have declared base parameter sets in `model.py`:
 flow, pressure, temperature, level, analyzer, ratio, and speed. A stable hash of
 the loop identifier introduces bounded heterogeneity in process time constant
 and gain. The hash is not random at runtime and is part of the deterministic
-contract.
+contract. All 50 resolved definitions are serialized into the benchmark
+manifest.
 
 Aggressive, sluggish, and oscillatory tuning scenarios modify controller gain
 and integral time. Other scenarios leave nominal controller parameters intact
