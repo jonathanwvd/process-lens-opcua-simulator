@@ -8,6 +8,7 @@ import math
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from asyncua import Server, ua
@@ -32,6 +33,10 @@ _CHECKPOINT_KEYS = {
     "seed",
     "start_at",
 }
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC).replace(microsecond=0)
 
 
 def _variant_type(signal: SignalDefinition) -> ua.VariantType:
@@ -79,6 +84,7 @@ class OpcUaPlantServer:
         max_history_values_per_node: int = 10_000,
         seed: int = 20260903,
         reset: bool = False,
+        wall_clock: Callable[[], datetime] = _utc_now,
     ) -> None:
         self.endpoint = endpoint
         self.history_db = Path(history_db).expanduser().resolve()
@@ -112,6 +118,7 @@ class OpcUaPlantServer:
             raise ValueError("max_history_values_per_node must be a positive integer")
         self.seed = int(seed)
         self.reset = reset
+        self.wall_clock = wall_clock
         self.catalog = load_catalog()
         self.signal_by_id = {item.signal_id: item for item in self.catalog.signals}
         self.server: Server | None = None
@@ -149,7 +156,7 @@ class OpcUaPlantServer:
                     "restart with --reset"
                 )
             if checkpoint is None:
-                now = datetime.now(UTC).replace(microsecond=0)
+                now = self._wall_time()
                 start = now - timedelta(hours=self.history_hours)
                 elapsed = 0.0
             else:
@@ -168,10 +175,27 @@ class OpcUaPlantServer:
         )
         if elapsed:
             self.simulator.advance(elapsed)
-        await self._prepare_history(resume=checkpoint is not None)
+        resumed_after_gap = False
+        if checkpoint is not None:
+            checkpoint_time = self.simulator.snapshot().timestamp
+            missing_seconds = (self._wall_time() - checkpoint_time).total_seconds()
+            complete_steps = math.floor(missing_seconds / self.integration_step_seconds)
+            if complete_steps > 0:
+                self.simulator.advance(complete_steps * self.integration_step_seconds)
+                resumed_after_gap = True
+        await self._prepare_history(
+            resume=checkpoint is not None,
+            resumed_after_gap=resumed_after_gap,
+        )
         await server.start()
         self._task = asyncio.create_task(self._realtime_loop())
         LOGGER.info("OPC UA server ready at %s with %d signals", self.endpoint, len(self.nodes))
+
+    def _wall_time(self) -> datetime:
+        value = self.wall_clock()
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("wall clock must include a UTC offset")
+        return value.astimezone(UTC).replace(microsecond=0)
 
     async def stop(self) -> None:
         if self._task:
@@ -263,13 +287,16 @@ class OpcUaPlantServer:
             raise ValueError("historian simulator checkpoint elapsed time is invalid")
         return start.astimezone(UTC), elapsed
 
-    async def _prepare_history(self, *, resume: bool) -> None:
+    async def _prepare_history(self, *, resume: bool, resumed_after_gap: bool = False) -> None:
         assert self.history is not None
         assert self.simulator is not None
         for node in self.nodes.values():
             await self.history.new_historized_node(node.nodeid, period=None, count=0)
         if resume:
-            await self._write_frame(self.simulator.snapshot(), history=False)
+            await self._write_frame(
+                self.simulator.snapshot(),
+                history=resumed_after_gap,
+            )
             return
         if self.history_hours <= 0:
             await self._write_frame(self.simulator.snapshot(), history=False)
@@ -334,8 +361,17 @@ class OpcUaPlantServer:
 
     async def _realtime_loop(self) -> None:
         assert self.simulator is not None
-        while True:
-            started = asyncio.get_running_loop().time()
-            await self._write_frame(self.simulator.advance(self.sample_seconds), history=True)
-            elapsed = asyncio.get_running_loop().time() - started
-            await asyncio.sleep(max(self.sample_seconds - elapsed, 0.05))
+        try:
+            while True:
+                started = asyncio.get_running_loop().time()
+                await self._write_frame(
+                    self.simulator.advance(self.sample_seconds),
+                    history=True,
+                )
+                elapsed = asyncio.get_running_loop().time() - started
+                await asyncio.sleep(max(self.sample_seconds - elapsed, 0.05))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            LOGGER.exception("real-time simulation loop stopped unexpectedly")
+            raise

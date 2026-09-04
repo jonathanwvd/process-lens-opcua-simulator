@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.2 — 2026-09-04
+
+- Advance compatible deterministic state across wall-clock downtime before the
+  OPC UA endpoint becomes ready, then commit one current frame without
+  fabricating observations inside the outage gap.
+- Preserve the 0.3.0 benchmark, schema, catalog, and checkpoint identities so
+  existing compatible historian volumes resume in place.
+- Make the container healthcheck reject stale or implausibly future source
+  timestamps instead of treating server-state availability as sufficient.
+- Add restart-gap, current-publication, and timestamp-freshness coverage.
+
 ## 0.3.1 — 2026-09-04
 
 - Preserve the 0.3.0 benchmark, schema, catalog, and checkpoint identities while

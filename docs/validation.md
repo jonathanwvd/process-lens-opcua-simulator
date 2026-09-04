@@ -321,3 +321,19 @@ seconds and passed its OPC UA healthcheck by 90 seconds. The resulting SQLite
 historian was approximately 232 MiB. These are development-host measurements,
 not universal latency or storage guarantees; the consumer health start period
 must retain margin and the exact deployed image is rechecked before cutover.
+
+## 0.3.2 restart wall-clock correction
+
+Date: 2026-09-04
+
+Consumer integration exposed a restart defect in 0.3.1: a persisted simulator
+continued from its checkpoint timestamp at real-time speed, so recent
+acquisition windows remained empty for the full duration of an outage even
+though the OPC UA server-state healthcheck passed.
+
+Package 0.3.2 advances compatible deterministic state across elapsed wall-clock
+downtime before serving, commits one current historian frame, and deliberately
+does not synthesize intermediate observations. Automated coverage verifies the
+exact resumed timestamp, the retained outage gap, prompt live publication, and
+healthcheck rejection of stale or future source timestamps. The full automated
+suite passes with the unchanged 0.3.0 benchmark and checkpoint identities.

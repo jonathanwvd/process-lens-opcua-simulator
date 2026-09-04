@@ -63,11 +63,14 @@ catalog digest, namespace, seed, UTC origin, elapsed time, integration step,
 publication cadence, and scenario cycle.
 
 On restart, the deterministic model replays to the checkpoint without writing
-the bootstrap period again. Existing historical rows remain unchanged and live
-publication continues from the next frame. A configuration mismatch fails
-before the endpoint starts. A database containing observations without a
-complete checkpoint is treated as an interrupted bootstrap and requires an
-explicit `--reset`; it is never silently repaired or duplicated.
+the bootstrap period again. If wall-clock time advanced while the server was
+offline, the model then advances deterministically across that interval and
+writes one current frame; the outage remains an explicit gap rather than a
+fabricated historical stream. Existing historical rows otherwise remain
+unchanged and live publication continues from the next frame. A configuration
+mismatch fails before the endpoint starts. A database containing observations
+without a complete checkpoint is treated as an interrupted bootstrap and
+requires an explicit `--reset`; it is never silently repaired or duplicated.
 
 ## Security boundary
 
@@ -77,6 +80,9 @@ untrusted network. Certificate-based SignAndEncrypt profiles and user identity
 configuration are required before any non-local deployment guidance.
 
 ## Compatibility test
+
+The container healthcheck reads a stable Signal and rejects stale or
+implausibly future source timestamps in addition to checking server state.
 
 The automated suite starts the server on ephemeral loopback ports and resolves
 the namespace by URI with an independent `asyncua` client. It verifies the

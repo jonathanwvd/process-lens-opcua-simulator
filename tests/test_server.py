@@ -78,7 +78,7 @@ def test_opcua_server_publishes_all_nodes_and_supports_current_reads(tmp_path: P
             endpoint=endpoint,
             history_db=tmp_path / "history.sqlite3",
             history_hours=0,
-            sample_seconds=1,
+            sample_seconds=5,
             reset=True,
         )
         await server.start()
@@ -102,6 +102,41 @@ def test_opcua_server_publishes_all_nodes_and_supports_current_reads(tmp_path: P
     assert node_count == 500
     assert value >= 0
     assert engineering_unit == "m³/h"
+
+
+def test_realtime_publication_advances_the_source_timestamp(tmp_path: Path) -> None:
+    async def exercise() -> tuple[datetime | None, datetime | None]:
+        port = _free_port()
+        endpoint = f"opc.tcp://127.0.0.1:{port}/process-plant-simulator/"
+        server = OpcUaPlantServer(
+            endpoint=endpoint,
+            history_db=tmp_path / "history.sqlite3",
+            history_hours=0,
+            sample_seconds=1,
+            reset=True,
+        )
+        await server.start()
+        try:
+            async with Client(endpoint, timeout=3) as client:
+                namespace = await client.get_namespace_index(NAMESPACE_URI)
+                node = client.get_node(
+                    ua.NodeId("Plant.Areas.HDT.Equipment.K-301.VIBRATION", namespace)
+                )
+                first = await node.read_data_value()
+                second = first
+                for _ in range(70):
+                    await asyncio.sleep(0.1)
+                    second = await node.read_data_value()
+                    if second.SourceTimestamp != first.SourceTimestamp:
+                        break
+                return first.SourceTimestamp, second.SourceTimestamp
+        finally:
+            await server.stop()
+
+    first, second = asyncio.run(exercise())
+    assert first is not None
+    assert second is not None
+    assert second > first
 
 
 def test_history_continuation_quality_ranges_and_restart_are_interoperable(
@@ -240,6 +275,49 @@ def test_history_continuation_quality_ranges_and_restart_are_interoperable(
     first_count, second_count, new_distinct = asyncio.run(exercise())
     assert second_count == first_count
     assert new_distinct == 0
+
+
+def test_restart_advances_across_downtime_without_fabricating_intermediate_history(
+    tmp_path: Path,
+) -> None:
+    async def exercise() -> tuple[datetime, datetime, int]:
+        port = _free_port()
+        endpoint = f"opc.tcp://127.0.0.1:{port}/process-plant-simulator/"
+        database = tmp_path / "history.sqlite3"
+        wall_time = [datetime(2026, 9, 4, 12, tzinfo=UTC)]
+        options = {
+            "endpoint": endpoint,
+            "history_db": database,
+            "history_hours": 60 / 3_600,
+            "sample_seconds": 5,
+            "seed": 31,
+            "wall_clock": lambda: wall_time[0],
+        }
+        server = OpcUaPlantServer(**options, reset=True)
+        await server.start()
+        table = server.history._get_table_name(server.nodes["SIG-0001"].nodeid)
+        await server.stop()
+        with sqlite3.connect(database) as connection:
+            before = datetime.fromisoformat(
+                connection.execute(
+                    f'SELECT MAX(SourceTimestamp) FROM "{table}"'
+                ).fetchone()[0]
+            )
+
+        wall_time[0] += timedelta(minutes=10)
+        restarted = OpcUaPlantServer(**options, reset=False)
+        await restarted.start()
+        await restarted.stop()
+        with sqlite3.connect(database) as connection:
+            after_text, count = connection.execute(
+                f'SELECT MAX(SourceTimestamp), COUNT(*) FROM "{table}"'
+            ).fetchone()
+        return before, datetime.fromisoformat(after_text), count
+
+    before, after, count = asyncio.run(exercise())
+    assert before == datetime(2026, 9, 4, 12)
+    assert after == datetime(2026, 9, 4, 12, 10)
+    assert count == 1
 
 
 def test_incomplete_historian_requires_explicit_reset(tmp_path: Path) -> None:
