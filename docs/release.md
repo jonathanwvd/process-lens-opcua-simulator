@@ -7,7 +7,8 @@
 | 0.2.0 | Previous release | 3.12+ | Linux container and development hosts | Original 50-loop, 500-signal public benchmark |
 | 0.3.0 | Superseded alpha release | 3.12, 3.13 | CI: Linux 3.12/3.13, macOS 3.13, Windows 3.13 | Closed v1 manifests, profiles, scenario studies, bounded historian continuity; cold bootstrap is not operationally qualified |
 | 0.3.1 | Superseded alpha release | 3.12, 3.13 | CI plus measured 24-hour cold bootstrap | Same 0.3.0 benchmark and checkpoint identity with bounded bootstrap performance correction |
-| 0.3.2 | Current alpha release | 3.12, 3.13 | CI plus restart-gap and timestamp-freshness coverage | Same 0.3.0 benchmark and checkpoint identity with wall-clock resume correction |
+| 0.3.2 | Superseded alpha release | 3.12, 3.13 | CI plus restart-gap and timestamp-freshness coverage | Same 0.3.0 benchmark and checkpoint identity with wall-clock resume correction |
+| 0.3.3 | Current alpha release | 3.12, 3.13 | CI plus indexed-retention integration coverage | Same 0.3.0 benchmark and checkpoint identity with bounded steady-state retention |
 
 The table describes tested configurations, not a promise that every Python or
 operating-system combination works. The container image is the reference
@@ -55,6 +56,10 @@ Package release 0.3.2 remains checkpoint-compatible with 0.3.0 and 0.3.1. On
 restart it advances deterministic state across real downtime, records one
 current observation frame, and preserves the outage as a historical gap. Its
 healthcheck additionally requires a fresh Signal source timestamp.
+
+Package release 0.3.3 adds source-timestamp indexes to new and compatible
+existing historian tables. It preserves the 0.3.2 restart and health semantics
+while bounding steady-state retention work for the 24-hour profile.
 
 ## Candidate build and smoke procedure
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from collections.abc import Iterable
@@ -33,6 +34,23 @@ class BulkHistorySQLite(HistorySQLite):
         await self._db.execute(
             "CREATE TABLE IF NOT EXISTS SimulatorCheckpoint ("
             "Identity INTEGER PRIMARY KEY CHECK (Identity = 1), Payload TEXT NOT NULL)"
+        )
+        await self._db.commit()
+
+    async def new_historized_node(
+        self,
+        node_id: ua.NodeId,
+        period: timedelta | None,
+        count: int = 0,
+    ) -> None:
+        await super().new_historized_node(node_id, period, count)
+        table = self._get_table_name(node_id)
+        validate_table_name(table)
+        index = f"HistorySource_{hashlib.sha256(table.encode()).hexdigest()[:16]}"
+        validate_table_name(index)
+        await self._db.execute(
+            f'CREATE INDEX IF NOT EXISTS "{index}" '
+            f'ON "{table}" ("SourceTimestamp")'
         )
         await self._db.commit()
 

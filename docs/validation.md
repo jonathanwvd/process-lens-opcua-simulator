@@ -337,3 +337,19 @@ does not synthesize intermediate observations. Automated coverage verifies the
 exact resumed timestamp, the retained outage gap, prompt live publication, and
 healthcheck rejection of stale or future source timestamps. The full automated
 suite passes with the unchanged 0.3.0 benchmark and checkpoint identities.
+
+## 0.3.3 indexed steady-state retention correction
+
+Date: 2026-09-04
+
+Deployment of 0.3.2 against the retained 24-hour historian proved that its
+per-node retention predicate scanned unindexed tables. The deterministic
+checkpoint reached wall time, but the first steady-state transaction remained
+busy long enough for current values to become stale; the new freshness
+healthcheck correctly rejected the endpoint.
+
+Package 0.3.3 creates one source-timestamp index per historian node, including
+when opening an existing compatible volume. Query-plan coverage proves that the
+retention predicate uses the index. Restart-gap, current-publication, historian,
+scenario, and complete package tests pass with unchanged benchmark and
+checkpoint identities.

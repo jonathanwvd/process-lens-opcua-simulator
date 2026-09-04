@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.3 — 2026-09-04
+
+- Index every historian table by source timestamp, including compatible
+  existing volumes, so steady-state retention remains bounded after a
+  24-hour bootstrap.
+- Preserve the 0.3.2 restart-gap and freshness semantics and all scientific
+  benchmark identities.
+
 ## 0.3.2 — 2026-09-04
 
 - Advance compatible deterministic state across wall-clock downtime before the

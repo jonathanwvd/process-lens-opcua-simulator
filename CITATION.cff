@@ -5,7 +5,7 @@ type: software
 authors:
   - family-names: Dambros
     given-names: Jonathan
-version: 0.3.2
+version: 0.3.3
 date-released: 2026-09-04
 url: "https://github.com/jonathanwvd/process-lens-opcua-simulator"
 repository-code: "https://github.com/jonathanwvd/process-lens-opcua-simulator"

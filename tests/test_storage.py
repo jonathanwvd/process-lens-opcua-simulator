@@ -120,3 +120,32 @@ def test_bulk_bootstrap_can_defer_redundant_retention_deletes(tmp_path: Path) ->
         await storage.stop()
 
     asyncio.run(exercise())
+
+
+def test_historized_nodes_index_source_timestamps_for_bounded_retention(
+    tmp_path: Path,
+) -> None:
+    async def exercise() -> None:
+        storage = BulkHistorySQLite(
+            tmp_path / "history.sqlite3",
+            retention_seconds=86_400,
+        )
+        await storage.init()
+        node_id = ua.NodeId("Plant.ControlLoops.FIC-101.PV", 2)
+        await storage.new_historized_node(node_id, period=None, count=0)
+        table = storage._get_table_name(node_id)
+
+        async with storage._db.execute(f'PRAGMA index_list("{table}")') as cursor:
+            indexes = await cursor.fetchall()
+        assert len(indexes) == 1
+
+        async with storage._db.execute(
+            f'EXPLAIN QUERY PLAN DELETE FROM "{table}" WHERE "SourceTimestamp" < ?',
+            ("2026-01-01 00:00:00.000000",),
+        ) as cursor:
+            plan = " ".join(str(value) for row in await cursor.fetchall() for value in row)
+        assert "USING" in plan
+        assert "SourceTimestamp" in plan
+        await storage.stop()
+
+    asyncio.run(exercise())
