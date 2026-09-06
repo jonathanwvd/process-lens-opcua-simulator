@@ -1,4 +1,5 @@
 import asyncio
+import json
 import socket
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -317,6 +318,53 @@ def test_restart_advances_across_downtime_without_fabricating_intermediate_histo
     assert before == datetime(2026, 9, 4, 12)
     assert after == datetime(2026, 9, 4, 12, 10)
     assert count == 1
+
+
+def test_restart_repairs_checkpoint_outside_the_sampling_lattice(
+    tmp_path: Path,
+) -> None:
+    async def exercise() -> tuple[float, bool]:
+        port = _free_port()
+        endpoint = f"opc.tcp://127.0.0.1:{port}/process-plant-simulator/"
+        database = tmp_path / "history.sqlite3"
+        wall_time = [datetime(2026, 9, 4, 12, tzinfo=UTC)]
+        options = {
+            "endpoint": endpoint,
+            "history_db": database,
+            "history_hours": 60 / 3_600,
+            "sample_seconds": 5,
+            "seed": 31,
+            "wall_clock": lambda: wall_time[0],
+        }
+        server = OpcUaPlantServer(**options, reset=True)
+        await server.start()
+        await server.stop()
+
+        with sqlite3.connect(database) as connection:
+            payload = json.loads(
+                connection.execute(
+                    "SELECT Payload FROM SimulatorCheckpoint WHERE Identity = 1"
+                ).fetchone()[0]
+            )
+            payload["elapsed_seconds"] = 61.0
+            connection.execute(
+                "UPDATE SimulatorCheckpoint SET Payload = ? WHERE Identity = 1",
+                (json.dumps(payload, separators=(",", ":"), sort_keys=True),),
+            )
+            connection.commit()
+
+        restarted = OpcUaPlantServer(**options, reset=False)
+        await restarted.start()
+        assert restarted.simulator is not None
+        repaired_elapsed = restarted.simulator.elapsed_seconds
+        next_frame = restarted.simulator.advance(restarted.sample_seconds)
+        await restarted.stop()
+        return repaired_elapsed, bool(next_frame.observations)
+
+    repaired_elapsed, publishes_on_lattice = asyncio.run(exercise())
+    assert repaired_elapsed == 65.0
+    assert repaired_elapsed % 5 == 0
+    assert publishes_on_lattice
 
 
 def test_incomplete_historian_requires_explicit_reset(tmp_path: Path) -> None:

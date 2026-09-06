@@ -9,7 +9,8 @@
 | 0.3.1 | Superseded alpha release | 3.12, 3.13 | CI plus measured 24-hour cold bootstrap | Same 0.3.0 benchmark and checkpoint identity with bounded bootstrap performance correction |
 | 0.3.2 | Superseded alpha release | 3.12, 3.13 | CI plus restart-gap and timestamp-freshness coverage | Same 0.3.0 benchmark and checkpoint identity with wall-clock resume correction |
 | 0.3.3 | Superseded alpha release | 3.12, 3.13 | CI plus indexed-retention integration coverage | Same 0.3.0 benchmark and checkpoint identity with bounded steady-state retention |
-| 0.3.4 | Current alpha release | 3.12, 3.13 | CI plus scenario-independent heartbeat coverage | Same 0.3.0 benchmark and checkpoint identity with explicit process liveness |
+| 0.3.4 | Superseded alpha release | 3.12, 3.13 | CI plus scenario-independent heartbeat coverage | Same 0.3.0 benchmark and checkpoint identity with explicit process liveness |
+| 0.3.5 | Current alpha release | 3.12, 3.13 | CI plus off-lattice checkpoint recovery coverage | Same 0.3.0 benchmark and checkpoint identity with sampling-lattice repair |
 
 The table describes tested configurations, not a promise that every Python or
 operating-system combination works. The container image is the reference
@@ -66,6 +67,12 @@ Package release 0.3.4 adds one technical heartbeat outside the scientific
 Signal catalog. This does not change the 500 Signals, benchmark identity, or
 historian contract; it prevents deliberate Signal gaps from being interpreted
 as process failure by the container healthcheck.
+
+Package release 0.3.5 repairs compatible checkpoints whose elapsed time was
+written outside the configured sampling lattice by an earlier wall-clock
+resume. It advances deterministic state to the next valid sample boundary,
+after which normal Signal cadences remain reachable. The benchmark, schema,
+catalog, and checkpoint identities are unchanged.
 
 ## Candidate build and smoke procedure
 

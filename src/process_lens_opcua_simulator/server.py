@@ -179,11 +179,21 @@ class OpcUaPlantServer:
             self.simulator.advance(elapsed)
         resumed_after_gap = False
         if checkpoint is not None:
-            checkpoint_time = self.simulator.snapshot().timestamp
-            missing_seconds = (self._wall_time() - checkpoint_time).total_seconds()
-            complete_steps = math.floor(missing_seconds / self.integration_step_seconds)
-            if complete_steps > 0:
-                self.simulator.advance(complete_steps * self.integration_step_seconds)
+            wall_elapsed = max(
+                (self._wall_time() - self.simulator.start_at).total_seconds(),
+                0.0,
+            )
+            wall_sample = (
+                math.floor(wall_elapsed / self.sample_seconds) * self.sample_seconds
+            )
+            checkpoint_sample = (
+                math.ceil(self.simulator.elapsed_seconds / self.sample_seconds)
+                * self.sample_seconds
+            )
+            resume_elapsed = max(wall_sample, checkpoint_sample)
+            missing_seconds = resume_elapsed - self.simulator.elapsed_seconds
+            if missing_seconds > 0:
+                self.simulator.advance(missing_seconds)
                 resumed_after_gap = True
         await self._prepare_history(
             resume=checkpoint is not None,

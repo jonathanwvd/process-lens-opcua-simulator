@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.5 — 2026-09-06
+
+- Realign compatible checkpoints to the configured sampling lattice during
+  restart so checkpoints written by earlier releases cannot leave all Signal
+  publication cadences permanently unreachable.
+- Preserve deterministic state, intentional Signal gaps, and the existing
+  benchmark, schema, catalog, and checkpoint identities.
+
 ## 0.3.4 — 2026-09-04
 
 - Publish a non-historized simulator heartbeat with deterministic source
