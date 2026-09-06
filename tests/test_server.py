@@ -146,6 +146,7 @@ def test_history_continuation_quality_ranges_and_restart_are_interoperable(
         port = _free_port()
         endpoint = f"opc.tcp://127.0.0.1:{port}/process-plant-simulator/"
         database = tmp_path / "history.sqlite3"
+        fixed_wall_time = datetime(2026, 9, 6, 12, tzinfo=UTC)
         options = {
             "endpoint": endpoint,
             "history_db": database,
@@ -154,6 +155,7 @@ def test_history_continuation_quality_ranges_and_restart_are_interoperable(
             "scenario_cycle_seconds": 600,
             "max_history_values_per_node": 2,
             "seed": 31,
+            "wall_clock": lambda: fixed_wall_time,
         }
         server = OpcUaPlantServer(**options, reset=True)
         await server.start()
@@ -315,8 +317,8 @@ def test_restart_advances_across_downtime_without_fabricating_intermediate_histo
         return before, datetime.fromisoformat(after_text), count
 
     before, after, count = asyncio.run(exercise())
-    assert before == datetime(2026, 9, 4, 12)
-    assert after == datetime(2026, 9, 4, 12, 10)
+    assert before == datetime.fromisoformat("2026-09-04T12:00:00")
+    assert after == datetime.fromisoformat("2026-09-04T12:10:00")
     assert count == 1
 
 

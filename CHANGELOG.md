@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.7 — 2026-09-06
+
+- Make the cross-platform historian restart interoperability test use an
+  explicit fixed wall clock so runner speed cannot create a legitimate new
+  sample while an immediate-restart assertion is being evaluated.
+- Preserve the 0.3.6 runtime image hardening and all scientific identities.
+
 ## 0.3.6 — 2026-09-06
 
 - Apply available Debian security updates while building the runtime image.

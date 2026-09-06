@@ -11,7 +11,8 @@
 | 0.3.3 | Superseded alpha release | 3.12, 3.13 | CI plus indexed-retention integration coverage | Same 0.3.0 benchmark and checkpoint identity with bounded steady-state retention |
 | 0.3.4 | Superseded alpha release | 3.12, 3.13 | CI plus scenario-independent heartbeat coverage | Same 0.3.0 benchmark and checkpoint identity with explicit process liveness |
 | 0.3.5 | Superseded alpha release | 3.12, 3.13 | CI plus off-lattice checkpoint recovery coverage | Same 0.3.0 benchmark and checkpoint identity with sampling-lattice repair |
-| 0.3.6 | Current alpha release | 3.12, 3.13 | Local container smoke and vulnerability scan plus release CI | Same 0.3.0 benchmark and checkpoint identity with runtime-image hardening |
+| 0.3.6 | Superseded alpha release | 3.12, 3.13 | Local container smoke and vulnerability scan; release CI exposed a wall-clock-sensitive Windows test | Same 0.3.0 benchmark and checkpoint identity with runtime-image hardening |
+| 0.3.7 | Current alpha release | 3.12, 3.13 | Cross-platform CI with deterministic restart interoperability test | Same 0.3.0 benchmark and checkpoint identity with runtime-image hardening |
 
 The table describes tested configurations, not a promise that every Python or
 operating-system combination works. The container image is the reference
@@ -79,6 +80,11 @@ Package release 0.3.6 applies available Debian updates when building
 the runtime image and removes Python packaging tools after installation. These
 container-only changes preserve the benchmark, schema, catalog, and checkpoint
 identities.
+
+Package release 0.3.7 fixes only the release test harness: the immediate
+restart interoperability test now injects a fixed wall clock rather than
+depending on runner speed. Runtime behavior and all scientific identities are
+unchanged from 0.3.6.
 
 ## Candidate build and smoke procedure
 

@@ -40,7 +40,7 @@ def _validate_schema(filename: str, value: object) -> None:
 
 
 def test_package_version_is_independent_from_benchmark_identity() -> None:
-    assert __version__ == version("process-lens-opcua-simulator") == "0.3.6"
+    assert __version__ == version("process-lens-opcua-simulator") == "0.3.7"
 
 
 def test_all_bundled_json_schemas_are_valid() -> None:
