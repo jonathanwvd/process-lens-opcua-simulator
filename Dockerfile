@@ -5,9 +5,15 @@ COPY src ./src
 RUN python -m pip wheel --no-cache-dir --wheel-dir /wheels .
 
 FROM python:3.12-slim
-RUN groupadd --system simulator && useradd --system --gid simulator --home /app simulator
+RUN apt-get update \
+    && apt-get upgrade --yes \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system simulator \
+    && useradd --system --gid simulator --home /app simulator
 COPY --from=builder /wheels /wheels
-RUN python -m pip install --no-cache-dir /wheels/*.whl && rm -rf /wheels
+RUN python -m pip install --no-cache-dir /wheels/*.whl \
+    && python -m pip uninstall --yes pip setuptools wheel \
+    && rm -rf /wheels
 WORKDIR /app
 RUN mkdir /data && chown simulator:simulator /data
 USER simulator

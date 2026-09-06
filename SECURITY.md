@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest published release receives security fixes. Version 0.3.1 is an
+Only the latest published release receives security fixes. Version 0.3.6 is an
 alpha research release and is not a production industrial source. See
 [Release and compatibility](docs/release.md) for the exact version table.
 

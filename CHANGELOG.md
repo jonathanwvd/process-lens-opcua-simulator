@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.6 — 2026-09-06
+
+- Apply available Debian security updates while building the runtime image.
+- Remove `pip`, `setuptools`, and `wheel` after installing the simulator so
+  build tooling and its known vulnerabilities are absent from runtime.
+- Preserve the 0.3.0 benchmark, schema, catalog, and checkpoint identities.
+
 ## 0.3.5 — 2026-09-06
 
 - Realign compatible checkpoints to the configured sampling lattice during
